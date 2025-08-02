@@ -14,3 +14,6 @@ var CertificateMutex = &sync.RWMutex{}
 
 // RepositoryCredentialsMutex is used to handle concurrent access to ArgoCD repository credentials
 var RepositoryCredentialsMutex = &sync.RWMutex{}
+
+// TokenMutexProjectMap is used to handle concurrent access to ArgoCD project tokens per project
+var TokenMutexProjectMap = make(map[string]*sync.RWMutex)

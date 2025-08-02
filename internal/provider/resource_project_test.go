@@ -1,4 +1,4 @@
-package argocd
+package provider
 
 import (
 	"fmt"
@@ -14,8 +14,8 @@ func TestAccArgoCDProject(t *testing.T) {
 	name := acctest.RandomWithPrefix("test-acc")
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviders,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectPolicyError(
@@ -102,8 +102,8 @@ func TestAccArgoCDProject(t *testing.T) {
 
 func TestAccArgoCDProject_tokensCoexistence(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviders,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectCoexistenceWithTokenResource(
@@ -149,8 +149,8 @@ func TestAccArgoCDProjectUpdateAddRole(t *testing.T) {
 	name := acctest.RandomWithPrefix("test-acc")
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviders,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectSimpleWithoutRole(name),
@@ -183,8 +183,8 @@ func TestAccArgoCDProjectWithClustersRepositoriesRolePolicy(t *testing.T) {
 	name := acctest.RandomWithPrefix("test-acc")
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviders,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectWithClustersRepositoriesRolePolicy(name),
@@ -208,8 +208,8 @@ func TestAccArgoCDProjectWithLogsExecRolePolicy(t *testing.T) {
 	name := acctest.RandomWithPrefix("test-acc")
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t); testAccPreCheckFeatureSupported(t, features.ExecLogsPolicy) },
-		ProviderFactories: testAccProviders,
+		PreCheck:                 func() { testAccPreCheck(t); testAccPreCheckFeatureSupported(t, features.ExecLogsPolicy) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectWithExecLogsRolePolicy(name),
@@ -233,8 +233,8 @@ func TestAccArgoCDProjectWithSourceNamespaces(t *testing.T) {
 	name := acctest.RandomWithPrefix("test-acc")
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t); testAccPreCheckFeatureSupported(t, features.ProjectSourceNamespaces) },
-		ProviderFactories: testAccProviders,
+		PreCheck:                 func() { testAccPreCheck(t); testAccPreCheckFeatureSupported(t, features.ProjectSourceNamespaces) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectWithSourceNamespaces(name),
@@ -262,7 +262,7 @@ func TestAccArgoCDProjectWithDestinationServiceAccounts(t *testing.T) {
 			testAccPreCheck(t)
 			testAccPreCheckFeatureSupported(t, features.ProjectDestinationServiceAccounts)
 		},
-		ProviderFactories: testAccProviders,
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectWithDestinationServiceAccounts(name),
@@ -296,8 +296,8 @@ func TestAccArgoCDProjectWithFineGrainedPolicy(t *testing.T) {
 	name := acctest.RandomWithPrefix("test-acc")
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t); testAccPreCheckFeatureSupported(t, features.ProjectFineGrainedPolicy) },
-		ProviderFactories: testAccProviders,
+		PreCheck:                 func() { testAccPreCheck(t); testAccPreCheckFeatureSupported(t, features.ProjectFineGrainedPolicy) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectWithFineGrainedPolicy(name),

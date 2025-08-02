@@ -1,9 +1,10 @@
-package argocd
+package provider
 
 import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -24,8 +25,8 @@ func TestAccArgoCDProjectToken(t *testing.T) {
 	expIn1 := expiresInDurationFunc(rand.Intn(100000))
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviders,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectTokenSimple(),
@@ -81,8 +82,8 @@ func TestAccArgoCDProjectToken_RenewBefore(t *testing.T) {
 	renewBeforeSeconds := expiresInSeconds - 1
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviders,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectTokenRenewBeforeSuccess(expiresIn, "20s"),
@@ -113,8 +114,8 @@ func TestAccArgoCDProjectToken_RenewAfter(t *testing.T) {
 
 	// Note: not running in parallel as this is a time sensitive test case
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviders,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccArgoCDProjectTokenRenewAfter(renewAfterSeconds),
@@ -319,4 +320,9 @@ func testDelay(seconds int) resource.TestCheckFunc {
 		time.Sleep(time.Duration(seconds) * time.Second)
 		return nil
 	}
+}
+
+func convertStringToInt64(s string) (i int64, err error) {
+	i, err = strconv.ParseInt(s, 10, 64)
+	return
 }
