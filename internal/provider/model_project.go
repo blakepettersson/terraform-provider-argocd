@@ -6,12 +6,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 type projectModel struct {
-	Metadata objectMeta       `tfsdk:"metadata"`
-	Spec     projectSpecModel `tfsdk:"spec"`
+	ID       types.String       `tfsdk:"id"`
+	Metadata []objectMeta       `tfsdk:"metadata"`
+	Spec     []projectSpecModel `tfsdk:"spec"`
 }
 
 type projectSpecModel struct {
@@ -85,11 +87,16 @@ type syncWindowModel struct {
 
 func projectSchemaBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
-		"metadata": objectMetaSchemaBlock("appproject", false),
-		"spec": schema.SingleNestedBlock{
+		"metadata": objectMetaSchemaListBlock("appproject", false),
+		"spec": schema.ListNestedBlock{
 			Description: "ArgoCD AppProject spec.",
-			Attributes:  projectSpecSchemaAttributesOnly(),
-			Blocks:      projectSpecSchemaBlocks(),
+			Validators: []validator.List{
+				listvalidator.SizeAtLeast(1),
+			},
+			NestedObject: schema.NestedBlockObject{
+				Attributes: projectSpecSchemaAttributesOnly(),
+				Blocks:     projectSpecSchemaBlocks(),
+			},
 		},
 	}
 }
@@ -640,8 +647,8 @@ func projectSpecSchemaAttributes() map[string]schema.Attribute {
 
 func newProject(project *v1alpha1.AppProject) *projectModel {
 	p := &projectModel{
-		Metadata: newObjectMeta(project.ObjectMeta),
-		Spec:     newProjectSpec(&project.Spec),
+		Metadata: []objectMeta{newObjectMeta(project.ObjectMeta)},
+		Spec:     []projectSpecModel{newProjectSpec(&project.Spec)},
 	}
 	return p
 }

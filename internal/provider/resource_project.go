@@ -13,9 +13,9 @@ import (
 	"github.com/argoproj/argo-cd/v3/pkg/apiclient/project"
 	"github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -38,7 +38,13 @@ func (r *projectResource) Metadata(ctx context.Context, req resource.MetadataReq
 func (r *projectResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages [projects](https://argo-cd.readthedocs.io/en/stable/user-guide/projects/) within ArgoCD.",
-		Blocks:              projectSchemaBlocks(),
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Description: "Project identifier",
+				Computed:    true,
+			},
+		},
+		Blocks: projectSchemaBlocks(),
 	}
 }
 
@@ -74,6 +80,15 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	// Validate that spec list is not empty
+	if len(data.Spec) == 0 {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"spec block is required but not provided",
+		)
+		return
+	}
+
 	// Convert model to ArgoCD project
 	objectMeta, spec, diags := expandProject(ctx, &data)
 	resp.Diagnostics.Append(diags...)
@@ -84,12 +99,12 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 	projectName := objectMeta.Name
 
 	// Check feature support
-	if !r.si.IsFeatureSupported(features.ProjectSourceNamespaces) && len(data.Spec.SourceNamespaces) > 0 {
+	if !r.si.IsFeatureSupported(features.ProjectSourceNamespaces) && len(data.Spec[0].SourceNamespaces) > 0 {
 		resp.Diagnostics.Append(diagnostics.FeatureNotSupported(features.ProjectSourceNamespaces)...)
 		return
 	}
 
-	if !r.si.IsFeatureSupported(features.ProjectDestinationServiceAccounts) && len(data.Spec.DestinationServiceAccount) > 0 {
+	if !r.si.IsFeatureSupported(features.ProjectDestinationServiceAccounts) && len(data.Spec[0].DestinationServiceAccount) > 0 {
 		resp.Diagnostics.Append(diagnostics.FeatureNotSupported(features.ProjectDestinationServiceAccounts)...)
 		return
 	}
@@ -143,7 +158,9 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 	tflog.Trace(ctx, fmt.Sprintf("created project %s", projectName))
 
 	// Parse response and store state
-	resp.Diagnostics.Append(resp.State.Set(ctx, newProject(p))...)
+	projectData := newProject(p)
+	projectData.ID = types.StringValue(projectName)
+	resp.Diagnostics.Append(resp.State.Set(ctx, projectData)...)
 }
 
 func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -160,7 +177,16 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	projectName := data.Metadata.Name.ValueString()
+	// Validate that metadata list is not empty
+	if len(data.Metadata) == 0 {
+		resp.Diagnostics.AddError(
+			"Invalid State",
+			"metadata block is missing from state",
+		)
+		return
+	}
+
+	projectName := data.Metadata[0].Name.ValueString()
 
 	// Initialize project mutex
 	if _, ok := argocdSync.TokenMutexProjectMap[projectName]; !ok {
@@ -183,7 +209,9 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, newProject(p))...)
+	projectData := newProject(p)
+	projectData.ID = types.StringValue(projectName)
+	resp.Diagnostics.Append(resp.State.Set(ctx, projectData)...)
 }
 
 func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -200,6 +228,15 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	// Validate that spec list is not empty
+	if len(data.Spec) == 0 {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"spec block is required but not provided",
+		)
+		return
+	}
+
 	// Convert model to ArgoCD project
 	objectMeta, spec, diags := expandProject(ctx, &data)
 	resp.Diagnostics.Append(diags...)
@@ -210,12 +247,12 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 	projectName := objectMeta.Name
 
 	// Check feature support
-	if !r.si.IsFeatureSupported(features.ProjectSourceNamespaces) && len(data.Spec.SourceNamespaces) > 0 {
+	if !r.si.IsFeatureSupported(features.ProjectSourceNamespaces) && len(data.Spec[0].SourceNamespaces) > 0 {
 		resp.Diagnostics.Append(diagnostics.FeatureNotSupported(features.ProjectSourceNamespaces)...)
 		return
 	}
 
-	if !r.si.IsFeatureSupported(features.ProjectDestinationServiceAccounts) && len(data.Spec.DestinationServiceAccount) > 0 {
+	if !r.si.IsFeatureSupported(features.ProjectDestinationServiceAccounts) && len(data.Spec[0].DestinationServiceAccount) > 0 {
 		resp.Diagnostics.Append(diagnostics.FeatureNotSupported(features.ProjectDestinationServiceAccounts)...)
 		return
 	}
@@ -238,7 +275,7 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	// Preserve preexisting JWTs for managed roles
-	roles := expandProjectRoles(ctx, data.Spec.Role)
+	roles := expandProjectRoles(ctx, data.Spec[0].Role)
 	for _, r := range roles {
 		var pr *v1alpha1.ProjectRole
 		var i int
@@ -300,7 +337,16 @@ func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	projectName := data.Metadata.Name.ValueString()
+	// Validate that metadata list is not empty
+	if len(data.Metadata) == 0 {
+		resp.Diagnostics.AddError(
+			"Invalid State",
+			"metadata block is missing from state",
+		)
+		return
+	}
+
+	projectName := data.Metadata[0].Name.ValueString()
 
 	// Initialize project mutex
 	if _, ok := argocdSync.TokenMutexProjectMap[projectName]; !ok {
@@ -320,29 +366,72 @@ func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest
 }
 
 func (r *projectResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("metadata").AtName("name"), req, resp)
+	// Initialize API clients
+	resp.Diagnostics.Append(r.si.InitClients(ctx)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Try to get the project from ArgoCD to verify it exists
+	p, err := r.si.ProjectClient.Get(ctx, &project.ProjectQuery{
+		Name: req.ID,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "NotFound") {
+			resp.Diagnostics.AddError(
+				"Cannot import non-existent remote object",
+				fmt.Sprintf("Project %s does not exist in ArgoCD", req.ID),
+			)
+			return
+		}
+		resp.Diagnostics.Append(diagnostics.ArgoCDAPIError("get", "project", req.ID, err)...)
+		return
+	}
+
+	// If project exists, populate the state with the full project data
+	projectData := newProject(p)
+	projectData.ID = types.StringValue(req.ID)
+	resp.Diagnostics.Append(resp.State.Set(ctx, projectData)...)
 }
 
 // expandProject converts the Terraform model to ArgoCD API types
 func expandProject(ctx context.Context, data *projectModel) (metav1.ObjectMeta, v1alpha1.AppProjectSpec, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	objectMeta := metav1.ObjectMeta{
-		Name:      data.Metadata.Name.ValueString(),
-		Namespace: data.Metadata.Namespace.ValueString(),
+	// Validate that metadata list is not empty
+	if len(data.Metadata) == 0 {
+		diags.AddError(
+			"Invalid Configuration",
+			"metadata block is required but not provided",
+		)
+		return metav1.ObjectMeta{}, v1alpha1.AppProjectSpec{}, diags
 	}
 
-	if len(data.Metadata.Labels) > 0 {
+	// Validate that spec list is not empty
+	if len(data.Spec) == 0 {
+		diags.AddError(
+			"Invalid Configuration",
+			"spec block is required but not provided",
+		)
+		return metav1.ObjectMeta{}, v1alpha1.AppProjectSpec{}, diags
+	}
+
+	objectMeta := metav1.ObjectMeta{
+		Name:      data.Metadata[0].Name.ValueString(),
+		Namespace: data.Metadata[0].Namespace.ValueString(),
+	}
+
+	if len(data.Metadata[0].Labels) > 0 {
 		labels := make(map[string]string)
-		for k, v := range data.Metadata.Labels {
+		for k, v := range data.Metadata[0].Labels {
 			labels[k] = v.ValueString()
 		}
 		objectMeta.Labels = labels
 	}
 
-	if len(data.Metadata.Annotations) > 0 {
+	if len(data.Metadata[0].Annotations) > 0 {
 		annotations := make(map[string]string)
-		for k, v := range data.Metadata.Annotations {
+		for k, v := range data.Metadata[0].Annotations {
 			annotations[k] = v.ValueString()
 		}
 		objectMeta.Annotations = annotations
@@ -350,27 +439,27 @@ func expandProject(ctx context.Context, data *projectModel) (metav1.ObjectMeta, 
 
 	spec := v1alpha1.AppProjectSpec{}
 
-	if !data.Spec.Description.IsNull() {
-		spec.Description = data.Spec.Description.ValueString()
+	if !data.Spec[0].Description.IsNull() {
+		spec.Description = data.Spec[0].Description.ValueString()
 	}
 
 	// Convert source repos
-	for _, repo := range data.Spec.SourceRepos {
+	for _, repo := range data.Spec[0].SourceRepos {
 		spec.SourceRepos = append(spec.SourceRepos, repo.ValueString())
 	}
 
 	// Convert signature keys
-	for _, key := range data.Spec.SignatureKeys {
+	for _, key := range data.Spec[0].SignatureKeys {
 		spec.SignatureKeys = append(spec.SignatureKeys, v1alpha1.SignatureKey{KeyID: key.ValueString()})
 	}
 
 	// Convert source namespaces
-	for _, ns := range data.Spec.SourceNamespaces {
+	for _, ns := range data.Spec[0].SourceNamespaces {
 		spec.SourceNamespaces = append(spec.SourceNamespaces, ns.ValueString())
 	}
 
 	// Convert destinations
-	for _, dest := range data.Spec.Destination {
+	for _, dest := range data.Spec[0].Destination {
 		d := v1alpha1.ApplicationDestination{
 			Namespace: dest.Namespace.ValueString(),
 		}
@@ -384,7 +473,7 @@ func expandProject(ctx context.Context, data *projectModel) (metav1.ObjectMeta, 
 	}
 
 	// Convert destination service accounts
-	for _, dsa := range data.Spec.DestinationServiceAccount {
+	for _, dsa := range data.Spec[0].DestinationServiceAccount {
 		d := v1alpha1.ApplicationDestinationServiceAccount{
 			DefaultServiceAccount: dsa.DefaultServiceAccount.ValueString(),
 			Server:                dsa.Server.ValueString(),
@@ -396,7 +485,7 @@ func expandProject(ctx context.Context, data *projectModel) (metav1.ObjectMeta, 
 	}
 
 	// Convert cluster resource blacklist
-	for _, gk := range data.Spec.ClusterResourceBlacklist {
+	for _, gk := range data.Spec[0].ClusterResourceBlacklist {
 		spec.ClusterResourceBlacklist = append(spec.ClusterResourceBlacklist, metav1.GroupKind{
 			Group: gk.Group.ValueString(),
 			Kind:  gk.Kind.ValueString(),
@@ -404,7 +493,7 @@ func expandProject(ctx context.Context, data *projectModel) (metav1.ObjectMeta, 
 	}
 
 	// Convert cluster resource whitelist
-	for _, gk := range data.Spec.ClusterResourceWhitelist {
+	for _, gk := range data.Spec[0].ClusterResourceWhitelist {
 		spec.ClusterResourceWhitelist = append(spec.ClusterResourceWhitelist, metav1.GroupKind{
 			Group: gk.Group.ValueString(),
 			Kind:  gk.Kind.ValueString(),
@@ -412,7 +501,7 @@ func expandProject(ctx context.Context, data *projectModel) (metav1.ObjectMeta, 
 	}
 
 	// Convert namespace resource blacklist
-	for _, gk := range data.Spec.NamespaceResourceBlacklist {
+	for _, gk := range data.Spec[0].NamespaceResourceBlacklist {
 		spec.NamespaceResourceBlacklist = append(spec.NamespaceResourceBlacklist, metav1.GroupKind{
 			Group: gk.Group.ValueString(),
 			Kind:  gk.Kind.ValueString(),
@@ -420,7 +509,7 @@ func expandProject(ctx context.Context, data *projectModel) (metav1.ObjectMeta, 
 	}
 
 	// Convert namespace resource whitelist
-	for _, gk := range data.Spec.NamespaceResourceWhitelist {
+	for _, gk := range data.Spec[0].NamespaceResourceWhitelist {
 		spec.NamespaceResourceWhitelist = append(spec.NamespaceResourceWhitelist, metav1.GroupKind{
 			Group: gk.Group.ValueString(),
 			Kind:  gk.Kind.ValueString(),
@@ -428,8 +517,8 @@ func expandProject(ctx context.Context, data *projectModel) (metav1.ObjectMeta, 
 	}
 
 	// Convert orphaned resources
-	if len(data.Spec.OrphanedResources) > 0 {
-		or := data.Spec.OrphanedResources[0]
+	if len(data.Spec[0].OrphanedResources) > 0 {
+		or := data.Spec[0].OrphanedResources[0]
 		spec.OrphanedResources = &v1alpha1.OrphanedResourcesMonitorSettings{}
 		if !or.Warn.IsNull() {
 			spec.OrphanedResources.Warn = or.Warn.ValueBoolPointer()
@@ -448,10 +537,10 @@ func expandProject(ctx context.Context, data *projectModel) (metav1.ObjectMeta, 
 	}
 
 	// Convert roles
-	spec.Roles = expandProjectRoles(ctx, data.Spec.Role)
+	spec.Roles = expandProjectRoles(ctx, data.Spec[0].Role)
 
 	// Convert sync windows
-	for _, sw := range data.Spec.SyncWindow {
+	for _, sw := range data.Spec[0].SyncWindow {
 		window := v1alpha1.SyncWindow{}
 		if !sw.Duration.IsNull() {
 			window.Duration = sw.Duration.ValueString()
