@@ -85,6 +85,22 @@ type syncWindowModel struct {
 	Timezone     types.String   `tfsdk:"timezone"`
 }
 
+func projectSchemaBlocksWithoutTokens() map[string]schema.Block {
+	blocks := projectSchemaBlocks()
+	
+	// Modify the role block to exclude jwt_tokens
+	if roleBlock, ok := blocks["spec"].(*schema.ListNestedBlock); ok {
+		if nestedBlocks, ok := roleBlock.NestedObject.Blocks["role"].(*schema.SetNestedBlock); ok {
+			// Remove jwt_tokens from the role attributes
+			if _, exists := nestedBlocks.NestedObject.Attributes["jwt_tokens"]; exists {
+				delete(nestedBlocks.NestedObject.Attributes, "jwt_tokens")
+			}
+		}
+	}
+	
+	return blocks
+}
+
 func projectSchemaBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
 		"metadata": objectMetaSchemaListBlock("appproject", false),
@@ -808,17 +824,9 @@ func newProjectSpec(spec *v1alpha1.AppProjectSpec) projectSpecModel {
 				}
 			}
 
-			// Handle JWT tokens
-			if len(role.JWTTokens) > 0 {
-				pr.JwtTokens = make([]jwtTokenModel, len(role.JWTTokens))
-				for j, token := range role.JWTTokens {
-					pr.JwtTokens[j] = jwtTokenModel{
-						ID:  types.StringValue(token.ID),
-						Iat: types.Int64Value(token.IssuedAt),
-						Exp: types.Int64Value(token.ExpiresAt),
-					}
-				}
-			}
+			// JWT tokens are not managed by the project resource - they are managed by argocd_project_token resources
+			// So we explicitly set them to nil to avoid conflicts and ensure they don't appear in state
+			pr.JwtTokens = nil
 
 			ps.Role[i] = pr
 		}
