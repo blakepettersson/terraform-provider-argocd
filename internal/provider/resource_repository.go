@@ -214,13 +214,12 @@ func (r *repositoryResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	// Update repository
 	sync.RepositoryMutex.Lock()
+	defer sync.RepositoryMutex.Unlock()
 
 	updatedRepo, err := r.si.RepositoryClient.UpdateRepository(
 		ctx,
 		&repository.RepoUpdateRequest{Repo: repo},
 	)
-
-	sync.RepositoryMutex.Unlock()
 
 	if err != nil {
 		resp.Diagnostics.Append(diagnostics.ArgoCDAPIError("update", "repository", repo.Repo, err)...)
@@ -272,6 +271,7 @@ func (r *repositoryResource) Delete(ctx context.Context, req resource.DeleteRequ
 
 	// Delete repository
 	sync.RepositoryMutex.Lock()
+	defer sync.RepositoryMutex.Unlock()
 
 	_, err := r.si.RepositoryClient.DeleteRepository(
 		ctx,
@@ -280,8 +280,6 @@ func (r *repositoryResource) Delete(ctx context.Context, req resource.DeleteRequ
 			AppProject: data.Project.ValueString(),
 		},
 	)
-
-	sync.RepositoryMutex.Unlock()
 
 	if err != nil {
 		if !strings.Contains(err.Error(), "NotFound") {

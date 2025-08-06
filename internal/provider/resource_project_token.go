@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/argoproj-labs/terraform-provider-argocd/internal/diagnostics"
@@ -168,11 +167,6 @@ func (r *projectTokenResource) Create(ctx context.Context, req resource.CreateRe
 		Role:    role,
 	}
 
-	// Initialize project mutex
-	if _, ok := argocdSync.TokenMutexProjectMap[projectName]; !ok {
-		argocdSync.TokenMutexProjectMap[projectName] = &sync.RWMutex{}
-	}
-
 	if !data.Description.IsNull() {
 		opts.Description = data.Description.ValueString()
 	}
@@ -212,9 +206,12 @@ func (r *projectTokenResource) Create(ctx context.Context, req resource.CreateRe
 		}
 	}
 
-	argocdSync.TokenMutexProjectMap[projectName].Lock()
+	// Get or create project mutex safely
+	projectMutex := argocdSync.GetProjectMutex(projectName)
+	projectMutex.Lock()
+	defer projectMutex.Unlock()
+
 	tokenResp, err := r.si.ProjectClient.CreateToken(ctx, opts)
-	argocdSync.TokenMutexProjectMap[projectName].Unlock()
 
 	if err != nil {
 		resp.Diagnostics.Append(diagnostics.ArgoCDAPIError("create", "token for project", projectName, err)...)
@@ -295,17 +292,15 @@ func (r *projectTokenResource) Read(ctx context.Context, req resource.ReadReques
 
 	projectName := data.Project.ValueString()
 
-	// Initialize project mutex
-	if _, ok := argocdSync.TokenMutexProjectMap[projectName]; !ok {
-		argocdSync.TokenMutexProjectMap[projectName] = &sync.RWMutex{}
-	}
+	// Get or create project mutex safely
+	projectMutex := argocdSync.GetProjectMutex(projectName)
 
 	// Delete token from state if project has been deleted in an out-of-band fashion
-	argocdSync.TokenMutexProjectMap[projectName].RLock()
+	projectMutex.RLock()
+	defer projectMutex.RUnlock()
 	p, err := r.si.ProjectClient.Get(ctx, &project.ProjectQuery{
 		Name: projectName,
 	})
-	argocdSync.TokenMutexProjectMap[projectName].RUnlock()
 
 	if err != nil {
 		if strings.Contains(err.Error(), "NotFound") {
@@ -316,13 +311,11 @@ func (r *projectTokenResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	argocdSync.TokenMutexProjectMap[projectName].RLock()
 	token, _, err := p.GetJWTToken(
 		data.Role.ValueString(),
 		0,
 		data.ID.ValueString(),
 	)
-	argocdSync.TokenMutexProjectMap[projectName].RUnlock()
 
 	if err != nil {
 		// Token has been deleted in an out-of-band fashion
@@ -412,13 +405,9 @@ func (r *projectTokenResource) Update(ctx context.Context, req resource.UpdateRe
 		}
 	}
 
-	// Since this resource generally requires replacement for changes,
-	// we just perform a read to update computed values
-	readReq := resource.ReadRequest{State: req.State}
-	readResp := resource.ReadResponse{State: resp.State, Diagnostics: resp.Diagnostics}
-	r.Read(ctx, readReq, &readResp)
-	resp.State = readResp.State
-	resp.Diagnostics = readResp.Diagnostics
+	// Update the state data with the plan data
+	// (no actual API update needed as tokens are immutable)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *projectTokenResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -437,18 +426,16 @@ func (r *projectTokenResource) Delete(ctx context.Context, req resource.DeleteRe
 
 	projectName := data.Project.ValueString()
 
-	// Initialize project mutex
-	if _, ok := argocdSync.TokenMutexProjectMap[projectName]; !ok {
-		argocdSync.TokenMutexProjectMap[projectName] = &sync.RWMutex{}
-	}
+	// Get or create project mutex safely
+	projectMutex := argocdSync.GetProjectMutex(projectName)
+	projectMutex.Lock()
+	defer projectMutex.Unlock()
 
-	argocdSync.TokenMutexProjectMap[projectName].Lock()
 	_, err := r.si.ProjectClient.DeleteToken(ctx, &project.ProjectTokenDeleteRequest{
 		Id:      data.ID.ValueString(),
 		Project: projectName,
 		Role:    data.Role.ValueString(),
 	})
-	argocdSync.TokenMutexProjectMap[projectName].Unlock()
 
 	if err != nil {
 		resp.Diagnostics.Append(diagnostics.ArgoCDAPIError("delete", "token for project", projectName, err)...)

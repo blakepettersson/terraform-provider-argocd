@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/argoproj-labs/terraform-provider-argocd/internal/diagnostics"
@@ -109,13 +108,10 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	// Initialize project mutex
-	if _, ok := argocdSync.TokenMutexProjectMap[projectName]; !ok {
-		argocdSync.TokenMutexProjectMap[projectName] = &sync.RWMutex{}
-	}
-
-	argocdSync.TokenMutexProjectMap[projectName].Lock()
-	defer argocdSync.TokenMutexProjectMap[projectName].Unlock()
+	// Get or create project mutex safely
+	projectMutex := argocdSync.GetProjectMutex(projectName)
+	projectMutex.Lock()
+	defer projectMutex.Unlock()
 
 	// Check if project already exists
 	p, err := r.si.ProjectClient.Get(ctx, &project.ProjectQuery{
@@ -188,16 +184,13 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	projectName := data.Metadata[0].Name.ValueString()
 
-	// Initialize project mutex
-	if _, ok := argocdSync.TokenMutexProjectMap[projectName]; !ok {
-		argocdSync.TokenMutexProjectMap[projectName] = &sync.RWMutex{}
-	}
-
-	argocdSync.TokenMutexProjectMap[projectName].RLock()
+	// Get or create project mutex safely
+	projectMutex := argocdSync.GetProjectMutex(projectName)
+	projectMutex.RLock()
+	defer projectMutex.RUnlock()
 	p, err := r.si.ProjectClient.Get(ctx, &project.ProjectQuery{
 		Name: projectName,
 	})
-	argocdSync.TokenMutexProjectMap[projectName].RUnlock()
 
 	if err != nil {
 		if strings.Contains(err.Error(), "NotFound") {
@@ -257,13 +250,10 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	// Initialize project mutex
-	if _, ok := argocdSync.TokenMutexProjectMap[projectName]; !ok {
-		argocdSync.TokenMutexProjectMap[projectName] = &sync.RWMutex{}
-	}
-
-	argocdSync.TokenMutexProjectMap[projectName].Lock()
-	defer argocdSync.TokenMutexProjectMap[projectName].Unlock()
+	// Get or create project mutex safely
+	projectMutex := argocdSync.GetProjectMutex(projectName)
+	projectMutex.Lock()
+	defer projectMutex.Unlock()
 
 	// Get current project
 	p, err := r.si.ProjectClient.Get(ctx, &project.ProjectQuery{
@@ -315,12 +305,19 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	tflog.Trace(ctx, fmt.Sprintf("updated project %s", projectName))
 
-	// Read updated resource
-	readReq := resource.ReadRequest{State: req.State}
-	readResp := resource.ReadResponse{State: resp.State, Diagnostics: resp.Diagnostics}
-	r.Read(ctx, readReq, &readResp)
-	resp.State = readResp.State
-	resp.Diagnostics = readResp.Diagnostics
+	// Get updated project data without calling Read() to avoid deadlock
+	updatedProject, err := r.si.ProjectClient.Get(ctx, &project.ProjectQuery{
+		Name: projectName,
+	})
+	if err != nil {
+		resp.Diagnostics.Append(diagnostics.ArgoCDAPIError("get", "project", projectName, err)...)
+		return
+	}
+
+	// Parse response and store state
+	projectData := newProject(updatedProject)
+	projectData.ID = types.StringValue(projectName)
+	resp.Diagnostics.Append(resp.State.Set(ctx, projectData)...)
 }
 
 func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -348,14 +345,12 @@ func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 	projectName := data.Metadata[0].Name.ValueString()
 
-	// Initialize project mutex
-	if _, ok := argocdSync.TokenMutexProjectMap[projectName]; !ok {
-		argocdSync.TokenMutexProjectMap[projectName] = &sync.RWMutex{}
-	}
+	// Get or create project mutex safely
+	projectMutex := argocdSync.GetProjectMutex(projectName)
+	projectMutex.Lock()
+	defer projectMutex.Unlock()
 
-	argocdSync.TokenMutexProjectMap[projectName].Lock()
 	_, err := r.si.ProjectClient.Delete(ctx, &project.ProjectQuery{Name: projectName})
-	argocdSync.TokenMutexProjectMap[projectName].Unlock()
 
 	if err != nil && !strings.Contains(err.Error(), "NotFound") {
 		resp.Diagnostics.Append(diagnostics.ArgoCDAPIError("delete", "project", projectName, err)...)
