@@ -3,10 +3,10 @@ package provider
 import (
 	"github.com/argoproj-labs/terraform-provider-argocd/internal/validators"
 	"github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -85,22 +85,6 @@ type syncWindowModel struct {
 	Timezone     types.String   `tfsdk:"timezone"`
 }
 
-func projectSchemaBlocksWithoutTokens() map[string]schema.Block {
-	blocks := projectSchemaBlocks()
-	
-	// Modify the role block to exclude jwt_tokens
-	if roleBlock, ok := blocks["spec"].(*schema.ListNestedBlock); ok {
-		if nestedBlocks, ok := roleBlock.NestedObject.Blocks["role"].(*schema.SetNestedBlock); ok {
-			// Remove jwt_tokens from the role attributes
-			if _, exists := nestedBlocks.NestedObject.Attributes["jwt_tokens"]; exists {
-				delete(nestedBlocks.NestedObject.Attributes, "jwt_tokens")
-			}
-		}
-	}
-	
-	return blocks
-}
-
 func projectSchemaBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
 		"metadata": objectMetaSchemaListBlock("appproject", false),
@@ -113,17 +97,6 @@ func projectSchemaBlocks() map[string]schema.Block {
 				Attributes: projectSpecSchemaAttributesOnly(),
 				Blocks:     projectSpecSchemaBlocks(),
 			},
-		},
-	}
-}
-
-func projectSchemaAttributes() map[string]schema.Attribute {
-	return map[string]schema.Attribute{
-		"metadata": objectMetaSchemaAttribute("appproject", false),
-		"spec": schema.SingleNestedAttribute{
-			Description: "ArgoCD AppProject spec.",
-			Required:    true,
-			Attributes:  projectSpecSchemaAttributes(),
 		},
 	}
 }
@@ -400,260 +373,6 @@ func projectSpecSchemaAttributesOnly() map[string]schema.Attribute {
 					"kind": schema.StringAttribute{
 						Description: "The Kubernetes resource Kind to match for.",
 						Optional:    true,
-					},
-				},
-			},
-		},
-	}
-}
-
-func projectSpecSchemaAttributes() map[string]schema.Attribute {
-	return map[string]schema.Attribute{
-		"cluster_resource_blacklist": schema.SetNestedAttribute{
-			Description: "Blacklisted cluster level resources.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"group": schema.StringAttribute{
-						Description: "The Kubernetes resource Group to match for.",
-						Optional:    true,
-						Validators: []validator.String{
-							validators.GroupNameValidator(),
-						},
-					},
-					"kind": schema.StringAttribute{
-						Description: "The Kubernetes resource Kind to match for.",
-						Optional:    true,
-					},
-				},
-			},
-		},
-		"cluster_resource_whitelist": schema.SetNestedAttribute{
-			Description: "Whitelisted cluster level resources.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"group": schema.StringAttribute{
-						Description: "The Kubernetes resource Group to match for.",
-						Optional:    true,
-						Validators: []validator.String{
-							validators.GroupNameValidator(),
-						},
-					},
-					"kind": schema.StringAttribute{
-						Description: "The Kubernetes resource Kind to match for.",
-						Optional:    true,
-					},
-				},
-			},
-		},
-		"description": schema.StringAttribute{
-			Description: "Project description.",
-			Optional:    true,
-		},
-		"destination": schema.SetNestedAttribute{
-			Description: "Destinations available for deployment.",
-			Required:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"server": schema.StringAttribute{
-						Description: "URL of the target cluster and must be set to the Kubernetes control plane API.",
-						Optional:    true,
-					},
-					"namespace": schema.StringAttribute{
-						Description: "Target namespace for applications' resources.",
-						Required:    true,
-					},
-					"name": schema.StringAttribute{
-						Description: "Name of the destination cluster which can be used instead of server.",
-						Optional:    true,
-					},
-				},
-			},
-		},
-		"destination_service_account": schema.SetNestedAttribute{
-			Description: "Service accounts to be impersonated for the application sync operation for each destination.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"default_service_account": schema.StringAttribute{
-						Description: "Used for impersonation during the sync operation",
-						Required:    true,
-					},
-					"namespace": schema.StringAttribute{
-						Description: "Specifies the target namespace for the application's resources.",
-						Optional:    true,
-					},
-					"server": schema.StringAttribute{
-						Description: "Specifies the URL of the target cluster's Kubernetes control plane API.",
-						Required:    true,
-					},
-				},
-			},
-		},
-		"namespace_resource_blacklist": schema.SetNestedAttribute{
-			Description: "Blacklisted namespace level resources.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"group": schema.StringAttribute{
-						Description: "The Kubernetes resource Group to match for.",
-						Optional:    true,
-					},
-					"kind": schema.StringAttribute{
-						Description: "The Kubernetes resource Kind to match for.",
-						Optional:    true,
-					},
-				},
-			},
-		},
-		"namespace_resource_whitelist": schema.SetNestedAttribute{
-			Description: "Whitelisted namespace level resources.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"group": schema.StringAttribute{
-						Description: "The Kubernetes resource Group to match for.",
-						Optional:    true,
-					},
-					"kind": schema.StringAttribute{
-						Description: "The Kubernetes resource Kind to match for.",
-						Optional:    true,
-					},
-				},
-			},
-		},
-		"orphaned_resources": schema.ListNestedAttribute{
-			Description: "Settings specifying if controller should monitor orphaned resources of apps in this project.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"warn": schema.BoolAttribute{
-						Description: "Whether a warning condition should be created for apps which have orphaned resources.",
-						Optional:    true,
-					},
-					"ignore": schema.SetNestedAttribute{
-						Optional: true,
-						NestedObject: schema.NestedAttributeObject{
-							Attributes: map[string]schema.Attribute{
-								"group": schema.StringAttribute{
-									Description: "The Kubernetes resource Group to match for.",
-									Optional:    true,
-									Validators: []validator.String{
-										validators.GroupNameValidator(),
-									},
-								},
-								"kind": schema.StringAttribute{
-									Description: "The Kubernetes resource Kind to match for.",
-									Optional:    true,
-								},
-								"name": schema.StringAttribute{
-									Description: "The Kubernetes resource name to match for.",
-									Optional:    true,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		"role": schema.ListNestedAttribute{
-			Description: "User defined RBAC roles associated with this project.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"description": schema.StringAttribute{
-						Description: "Description of the role.",
-						Optional:    true,
-					},
-					"groups": schema.ListAttribute{
-						Description: "List of OIDC group claims bound to this role.",
-						Optional:    true,
-						ElementType: types.StringType,
-					},
-					"name": schema.StringAttribute{
-						Description: "Name of the role.",
-						Required:    true,
-						Validators: []validator.String{
-							validators.RoleNameValidator(),
-						},
-					},
-					"policies": schema.ListAttribute{
-						Description: "List of casbin formatted strings that define access policies for the role in the project. For more information, see the [ArgoCD RBAC reference](https://argoproj.github.io/argo-cd/operator-manual/rbac/#rbac-permission-structure).",
-						Required:    true,
-						ElementType: types.StringType,
-					},
-				},
-			},
-		},
-		"source_repos": schema.ListAttribute{
-			Description: "List of repository URLs which can be used for deployment. Can be set to `[\"*\"]` to allow all configured repositories configured in ArgoCD.",
-			Required:    true,
-			ElementType: types.StringType,
-		},
-		"source_namespaces": schema.SetAttribute{
-			Description: "List of namespaces that application resources are allowed to be created in.",
-			Optional:    true,
-			ElementType: types.StringType,
-		},
-		"signature_keys": schema.ListAttribute{
-			Description: "List of PGP key IDs that commits in Git must be signed with in order to be allowed for sync.",
-			Optional:    true,
-			ElementType: types.StringType,
-		},
-		"sync_window": schema.ListNestedAttribute{
-			Description: "Settings controlling when syncs can be run for apps in this project.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"applications": schema.ListAttribute{
-						Description: "List of applications that the window will apply to.",
-						Optional:    true,
-						ElementType: types.StringType,
-					},
-					"clusters": schema.ListAttribute{
-						Description: "List of clusters that the window will apply to.",
-						Optional:    true,
-						ElementType: types.StringType,
-					},
-					"duration": schema.StringAttribute{
-						Description: "Amount of time the sync window will be open.",
-						Optional:    true,
-						Validators: []validator.String{
-							validators.SyncWindowDurationValidator(),
-						},
-					},
-					"kind": schema.StringAttribute{
-						Description: "Defines if the window allows or blocks syncs, allowed values are `allow` or `deny`.",
-						Optional:    true,
-						Validators: []validator.String{
-							validators.SyncWindowKindValidator(),
-						},
-					},
-					"manual_sync": schema.BoolAttribute{
-						Description: "Enables manual syncs when they would otherwise be blocked.",
-						Optional:    true,
-					},
-					"namespaces": schema.ListAttribute{
-						Description: "List of namespaces that the window will apply to.",
-						Optional:    true,
-						ElementType: types.StringType,
-					},
-					"schedule": schema.StringAttribute{
-						Description: "Time the window will begin, specified in cron format.",
-						Optional:    true,
-						Validators: []validator.String{
-							validators.SyncWindowScheduleValidator(),
-						},
-					},
-					"timezone": schema.StringAttribute{
-						Description: "Timezone that the schedule will be evaluated in.",
-						Optional:    true,
-						Computed:    true,
-						Default:     stringdefault.StaticString("UTC"),
-						Validators: []validator.String{
-							validators.SyncWindowTimezoneValidator(),
-						},
 					},
 				},
 			},
