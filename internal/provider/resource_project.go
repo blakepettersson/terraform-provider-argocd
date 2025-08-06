@@ -165,6 +165,22 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
+	// Check for errors before proceeding
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectName := data.Metadata[0].Name.ValueString()
+
+	// Get or create project mutex safely
+	projectMutex := argocdSync.GetProjectMutex(projectName)
+	projectMutex.RLock()
+	defer projectMutex.RUnlock()
+
+	r.readUnsafe(ctx, data, projectName, resp)
+}
+
+func (r *projectResource) readUnsafe(ctx context.Context, data projectModel, projectName string, resp *resource.ReadResponse) {
 	// Initialize API clients
 	resp.Diagnostics.Append(r.si.InitClients(ctx)...)
 
@@ -182,12 +198,6 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	projectName := data.Metadata[0].Name.ValueString()
-
-	// Get or create project mutex safely
-	projectMutex := argocdSync.GetProjectMutex(projectName)
-	projectMutex.RLock()
-	defer projectMutex.RUnlock()
 	p, err := r.si.ProjectClient.Get(ctx, &project.ProjectQuery{
 		Name: projectName,
 	})
@@ -305,19 +315,18 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	tflog.Trace(ctx, fmt.Sprintf("updated project %s", projectName))
 
-	// Get updated project data without calling Read() to avoid deadlock
-	updatedProject, err := r.si.ProjectClient.Get(ctx, &project.ProjectQuery{
-		Name: projectName,
-	})
-	if err != nil {
-		resp.Diagnostics.Append(diagnostics.ArgoCDAPIError("get", "project", projectName, err)...)
-		return
-	}
+	// Read updated resource
+	readReq := resource.ReadRequest{State: req.State}
+	readResp := resource.ReadResponse{State: resp.State, Diagnostics: resp.Diagnostics}
 
-	// Parse response and store state
-	projectData := newProject(updatedProject)
-	projectData.ID = types.StringValue(projectName)
-	resp.Diagnostics.Append(resp.State.Set(ctx, projectData)...)
+	var updatedData projectModel
+
+	// Read Terraform state data into the model
+	resp.Diagnostics.Append(readReq.State.Get(ctx, &updatedData)...)
+
+	r.readUnsafe(ctx, updatedData, projectName, &readResp)
+	resp.State = readResp.State
+	resp.Diagnostics = readResp.Diagnostics
 }
 
 func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
