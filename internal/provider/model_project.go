@@ -122,6 +122,78 @@ func projectSpecSchemaBlocks() map[string]schema.Block {
 				},
 			},
 		},
+		"cluster_resource_blacklist": schema.SetNestedBlock{
+			Description: "Blacklisted cluster level resources.",
+			NestedObject: schema.NestedBlockObject{
+				Attributes: map[string]schema.Attribute{
+					"group": schema.StringAttribute{
+						Description: "The Kubernetes resource Group to match for.",
+						Optional:    true,
+						Validators: []validator.String{
+							validators.GroupNameValidator(),
+						},
+					},
+					"kind": schema.StringAttribute{
+						Description: "The Kubernetes resource Kind to match for.",
+						Optional:    true,
+					},
+				},
+			},
+		},
+		"cluster_resource_whitelist": schema.SetNestedBlock{
+			Description: "Whitelisted cluster level resources.",
+			NestedObject: schema.NestedBlockObject{
+				Attributes: map[string]schema.Attribute{
+					"group": schema.StringAttribute{
+						Description: "The Kubernetes resource Group to match for.",
+						Optional:    true,
+						Validators: []validator.String{
+							validators.GroupNameValidator(),
+						},
+					},
+					"kind": schema.StringAttribute{
+						Description: "The Kubernetes resource Kind to match for.",
+						Optional:    true,
+					},
+				},
+			},
+		},
+		"namespace_resource_blacklist": schema.SetNestedBlock{
+			Description: "Blacklisted namespace level resources.",
+			NestedObject: schema.NestedBlockObject{
+				Attributes: map[string]schema.Attribute{
+					"group": schema.StringAttribute{
+						Description: "The Kubernetes resource Group to match for.",
+						Optional:    true,
+						Validators: []validator.String{
+							validators.GroupNameValidator(),
+						},
+					},
+					"kind": schema.StringAttribute{
+						Description: "The Kubernetes resource Kind to match for.",
+						Optional:    true,
+					},
+				},
+			},
+		},
+		"namespace_resource_whitelist": schema.SetNestedBlock{
+			Description: "Whitelisted namespace level resources.",
+			NestedObject: schema.NestedBlockObject{
+				Attributes: map[string]schema.Attribute{
+					"group": schema.StringAttribute{
+						Description: "The Kubernetes resource Group to match for.",
+						Optional:    true,
+						Validators: []validator.String{
+							validators.GroupNameValidator(),
+						},
+					},
+					"kind": schema.StringAttribute{
+						Description: "The Kubernetes resource Kind to match for.",
+						Optional:    true,
+					},
+				},
+			},
+		},
 		"orphaned_resources": schema.SetNestedBlock{
 			Description: "Configuration for orphaned resources tracking.",
 			NestedObject: schema.NestedBlockObject{
@@ -300,82 +372,6 @@ func projectSpecSchemaAttributesOnly() map[string]schema.Attribute {
 			Description: "Signature keys for verifying the integrity of applications.",
 			Optional:    true,
 			ElementType: types.StringType,
-		},
-		"cluster_resource_blacklist": schema.SetNestedAttribute{
-			Description: "Blacklisted cluster level resources.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"group": schema.StringAttribute{
-						Description: "The Kubernetes resource Group to match for.",
-						Optional:    true,
-						Validators: []validator.String{
-							validators.GroupNameValidator(),
-						},
-					},
-					"kind": schema.StringAttribute{
-						Description: "The Kubernetes resource Kind to match for.",
-						Optional:    true,
-					},
-				},
-			},
-		},
-		"cluster_resource_whitelist": schema.SetNestedAttribute{
-			Description: "Whitelisted cluster level resources.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"group": schema.StringAttribute{
-						Description: "The Kubernetes resource Group to match for.",
-						Optional:    true,
-						Validators: []validator.String{
-							validators.GroupNameValidator(),
-						},
-					},
-					"kind": schema.StringAttribute{
-						Description: "The Kubernetes resource Kind to match for.",
-						Optional:    true,
-					},
-				},
-			},
-		},
-		"namespace_resource_blacklist": schema.SetNestedAttribute{
-			Description: "Blacklisted namespace level resources.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"group": schema.StringAttribute{
-						Description: "The Kubernetes resource Group to match for.",
-						Optional:    true,
-						Validators: []validator.String{
-							validators.GroupNameValidator(),
-						},
-					},
-					"kind": schema.StringAttribute{
-						Description: "The Kubernetes resource Kind to match for.",
-						Optional:    true,
-					},
-				},
-			},
-		},
-		"namespace_resource_whitelist": schema.SetNestedAttribute{
-			Description: "Whitelisted namespace level resources.",
-			Optional:    true,
-			NestedObject: schema.NestedAttributeObject{
-				Attributes: map[string]schema.Attribute{
-					"group": schema.StringAttribute{
-						Description: "The Kubernetes resource Group to match for.",
-						Optional:    true,
-						Validators: []validator.String{
-							validators.GroupNameValidator(),
-						},
-					},
-					"kind": schema.StringAttribute{
-						Description: "The Kubernetes resource Kind to match for.",
-						Optional:    true,
-					},
-				},
-			},
 		},
 	}
 }
