@@ -133,7 +133,7 @@ func (v syncWindowScheduleValidator) ValidateString(ctx context.Context, req val
 		resp.Diagnostics.AddAttributeError(
 			req.Path,
 			"Invalid Cron Schedule",
-			fmt.Sprintf("Cannot parse schedule '%s': %s", value, err.Error()),
+			fmt.Sprintf("cannot parse schedule '%s': %s", value, err.Error()),
 		)
 	}
 }
@@ -195,7 +195,7 @@ func (v syncWindowTimezoneValidator) ValidateString(ctx context.Context, req val
 		resp.Diagnostics.AddAttributeError(
 			req.Path,
 			"Invalid Timezone",
-			fmt.Sprintf("Cannot parse timezone '%s': %s", value, err.Error()),
+			fmt.Sprintf("cannot parse timezone '%s': %s", value, err.Error()),
 		)
 	}
 }

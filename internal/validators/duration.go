@@ -34,7 +34,7 @@ func (v durationValidator) ValidateString(ctx context.Context, req validator.Str
 		resp.Diagnostics.AddAttributeError(
 			req.Path,
 			"Invalid Duration",
-			fmt.Sprintf("Invalid duration '%s': %s", value, err.Error()),
+			fmt.Sprintf("cannot parse duration '%s': %s", value, err.Error()),
 		)
 	}
 }
