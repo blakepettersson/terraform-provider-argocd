@@ -322,6 +322,256 @@ func testDelay(seconds int) resource.TestCheckFunc {
 	}
 }
 
+// TestAccArgoCDProjectToken_BasicFieldsConsistency tests consistency of basic token fields
+func TestAccArgoCDProjectToken_BasicFieldsConsistency(t *testing.T) {
+	config := `
+resource "argocd_project_token" "basic_consistency" {
+  project     = "myproject1"
+  role        = "test-role1234"
+  description = "test token for consistency"
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.basic_consistency",
+						"project",
+						"myproject1",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.basic_consistency",
+						"role",
+						"test-role1234",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.basic_consistency",
+						"description",
+						"test token for consistency",
+					),
+					resource.TestCheckResourceAttrSet(
+						"argocd_project_token.basic_consistency",
+						"issued_at",
+					),
+				),
+			},
+			{
+				// Apply the same configuration again to test for consistency
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.basic_consistency",
+						"project",
+						"myproject1",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.basic_consistency",
+						"role",
+						"test-role1234",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.basic_consistency",
+						"description",
+						"test token for consistency",
+					),
+					resource.TestCheckResourceAttrSet(
+						"argocd_project_token.basic_consistency",
+						"issued_at",
+					),
+				),
+			},
+		},
+	})
+}
+
+// TestAccArgoCDProjectToken_ExpiryFieldsConsistency tests consistency of expiry-related fields
+func TestAccArgoCDProjectToken_ExpiryFieldsConsistency(t *testing.T) {
+	config := `
+resource "argocd_project_token" "expiry_consistency" {
+  project    = "myproject1"
+  role       = "test-role1234"
+  expires_in = "3600s"
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.expiry_consistency",
+						"expires_in",
+						"3600s",
+					),
+					resource.TestCheckResourceAttrSet(
+						"argocd_project_token.expiry_consistency",
+						"expires_at",
+					),
+					resource.TestCheckResourceAttrSet(
+						"argocd_project_token.expiry_consistency",
+						"issued_at",
+					),
+				),
+			},
+			{
+				// Apply the same configuration again to test for consistency
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.expiry_consistency",
+						"expires_in",
+						"3600s",
+					),
+					resource.TestCheckResourceAttrSet(
+						"argocd_project_token.expiry_consistency",
+						"expires_at",
+					),
+					resource.TestCheckResourceAttrSet(
+						"argocd_project_token.expiry_consistency",
+						"issued_at",
+					),
+				),
+			},
+		},
+	})
+}
+
+// TestAccArgoCDProjectToken_RenewFieldsConsistency tests consistency of renew-related fields
+func TestAccArgoCDProjectToken_RenewFieldsConsistency(t *testing.T) {
+	config := `
+resource "argocd_project_token" "renew_consistency" {
+  project      = "myproject1"
+  role         = "test-role1234"
+  expires_in   = "3600s"
+  renew_before = "600s"
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_consistency",
+						"expires_in",
+						"3600s",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_consistency",
+						"renew_before",
+						"600s",
+					),
+					resource.TestCheckResourceAttrSet(
+						"argocd_project_token.renew_consistency",
+						"expires_at",
+					),
+				),
+			},
+			{
+				// Apply the same configuration again to test for consistency
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_consistency",
+						"expires_in",
+						"3600s",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_consistency",
+						"renew_before",
+						"600s",
+					),
+					resource.TestCheckResourceAttrSet(
+						"argocd_project_token.renew_consistency",
+						"expires_at",
+					),
+				),
+			},
+		},
+	})
+}
+
+// TestAccArgoCDProjectToken_RenewAfterConsistency tests consistency of renew_after field
+func TestAccArgoCDProjectToken_RenewAfterConsistency(t *testing.T) {
+	config := `
+resource "argocd_project_token" "renew_after_consistency" {
+  project     = "myproject1"
+  role        = "test-role1234"
+  description = "long-lived token with renew_after"
+  renew_after = "86400s"
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_after_consistency",
+						"project",
+						"myproject1",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_after_consistency",
+						"role",
+						"test-role1234",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_after_consistency",
+						"renew_after",
+						"86400s",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_after_consistency",
+						"description",
+						"long-lived token with renew_after",
+					),
+				),
+			},
+			{
+				// Apply the same configuration again to test for consistency
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_after_consistency",
+						"project",
+						"myproject1",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_after_consistency",
+						"role",
+						"test-role1234",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_after_consistency",
+						"renew_after",
+						"86400s",
+					),
+					resource.TestCheckResourceAttr(
+						"argocd_project_token.renew_after_consistency",
+						"description",
+						"long-lived token with renew_after",
+					),
+				),
+			},
+		},
+	})
+}
+
 func convertStringToInt64(s string) (i int64, err error) {
 	i, err = strconv.ParseInt(s, 10, 64)
 	return
